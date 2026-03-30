@@ -27,7 +27,7 @@ const JoinModel = ({ JoinOpen, setJoinOpen }) => {
   }
 
   return (
-    <div className="fixed inset-0 z-30 bg-black/40 flex items-center justify-center">
+    <div className="fixed inset-0 z-[1000] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="relative w-150 max-w-[90%] bg-gray-700 rounded-2xl shadow-xl p-6">
         {/* Close button */}
         <button

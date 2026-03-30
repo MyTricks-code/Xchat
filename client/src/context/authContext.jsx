@@ -86,6 +86,7 @@ export const AuthProvider = ({ children }) => {
         {},
         { withCredentials: true },
       );
+      setUser(null)
       if (res.data.success) return toast.success(res.data.message);
       return toast.error(res.data.message);
     } catch (err) {

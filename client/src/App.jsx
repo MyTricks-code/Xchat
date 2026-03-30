@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import AppSidebar from './components/AppSidebar'
 import ChatSection from './components/ChatSection'
+import JoinModel from './components/JoinModel'
+import SettingModel from './components/Settings'
 import { Toaster } from 'react-hot-toast'
 import { useParams, useNavigate } from 'react-router'
 import axios from 'axios'
@@ -11,6 +13,57 @@ import { useAuth } from './context/authContext'
 
 const API = import.meta.env.VITE_BACKEND_URL || "http://localhost:3000";
 
+// Global Loading Toast Interceptors
+let loadingToastId = null;
+axios.interceptors.request.use((config) => {
+  if (!loadingToastId) loadingToastId = toast.loading("Processing...");
+  return config;
+}, (error) => {
+  if (loadingToastId) {
+    toast.dismiss(loadingToastId);
+    loadingToastId = null;
+  }
+  return Promise.reject(error);
+});
+
+axios.interceptors.response.use((response) => {
+  if (loadingToastId) {
+    toast.dismiss(loadingToastId);
+    loadingToastId = null;
+  }
+  return response;
+}, (error) => {
+  if (loadingToastId) {
+    toast.dismiss(loadingToastId);
+    loadingToastId = null;
+  }
+  return Promise.reject(error);
+});
+
+// Helper for cookies
+const addToRecentRooms = (name, id) => {
+  if (!name || !id) return;
+  const cookieName = "recentrooms";
+  const cookies = document.cookie.split('; ');
+  const recentCookie = cookies.find(row => row.startsWith(cookieName + '='));
+  let recentRooms = [];
+  if (recentCookie) {
+    try {
+      recentRooms = JSON.parse(decodeURIComponent(recentCookie.split('=')[1]));
+    } catch(e) {
+      recentRooms = [];
+    }
+  }
+
+  recentRooms = recentRooms.filter(r => r.id !== id);
+  recentRooms.unshift({ name, id });
+  recentRooms = recentRooms.slice(0, 10);
+  
+  const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toUTCString();
+  document.cookie = `${cookieName}=${encodeURIComponent(JSON.stringify(recentRooms))}; expires=${expires}; path=/`;
+  window.dispatchEvent(new Event('recentRoomsUpdated'));
+};
+
 export default function App() {
   const { roomId } = useParams();
   const navigate = useNavigate();
@@ -18,6 +71,8 @@ export default function App() {
   const [roomInfo, setRoomInfo] = useState(null);
   const [showParticipants, setShowParticipants] = useState(false);
   const [participantsList, setParticipantsList] = useState([]);
+  const [JoinOpen, setJoinOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   useEffect(() => {
     const fetchRoomInfo = async () => {
@@ -29,6 +84,7 @@ export default function App() {
         const res = await axios.get(`${API}/api/rooms/get-room/${roomId}`, { withCredentials: true });
         if (res.data.success) {
           setRoomInfo(res.data.room);
+          addToRecentRooms(res.data.room.name, res.data.room.roomId);
         }
       } catch (err) {
         console.error("Error fetching room info:", err);
@@ -54,46 +110,72 @@ export default function App() {
   return (
     <SidebarProvider>
       <Toaster position="top-center" reverseOrder={false} />
-      <AppSidebar />
-      <SidebarInset className="flex flex-col h-screen overflow-hidden">
-        <header className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border px-4 bg-background z-20">
-          <div className="flex items-center gap-2 overflow-hidden">
-            <SidebarTrigger className="-ml-1 text-primary" />
-            {roomId && (
-              <div className="flex items-center gap-2 ml-2 min-w-0">
-                <div className="h-4 w-[1px] bg-border mx-1 shrink-0" />
-                <Hash className="size-4 text-primary shrink-0 drop-shadow-[0_0_5px_rgba(0,255,0,0.5)]" />
-                <span className="font-bold text-sm truncate text-primary drop-shadow-[0_0_8px_rgba(0,255,0,0.4)]">
-                  {roomInfo?.name || "LOADING..."}
-                </span>
-              </div>
-            )}
+      <AppSidebar 
+        JoinOpen={JoinOpen} 
+        setJoinOpen={setJoinOpen} 
+        settingsOpen={settingsOpen} 
+        setSettingsOpen={setSettingsOpen} 
+      />
+      <SidebarInset className="flex flex-col h-screen overflow-hidden relative">
+        <header className="flex flex-col md:flex-row md:h-12 shrink-0 items-center justify-between border-b border-border bg-background sticky top-0 z-20 px-4">
+          <div className="flex h-12 w-full md:w-auto items-center justify-between md:justify-start gap-2">
+            <div className="flex items-center gap-2 overflow-hidden">
+              <SidebarTrigger className="-ml-1 text-primary" />
+              {roomId && (
+                <div className="flex items-center gap-2 ml-2 min-w-0">
+                  <div className="h-4 w-[1px] bg-border mx-1 shrink-0" />
+                  <Hash className="size-4 text-primary shrink-0 drop-shadow-[0_0_5px_rgba(0,255,0,0.5)]" />
+                  <span className="font-bold text-sm truncate text-primary drop-shadow-[0_0_8px_rgba(0,255,0,0.4)]">
+                    {roomInfo?.name || "LOADING..."}
+                  </span>
+                </div>
+              )}
+            </div>
+            
+            {/* Mobile-only trash icon on the right of the first row */}
+            <div className="md:hidden">
+              {roomId && (
+                <button 
+                  onClick={handleDeleteRoom}
+                  className="p-2 rounded text-primary/70 hover:text-red-500 hover:bg-red-500/10 transition-all border border-transparent hover:border-red-500/30 group"
+                  title="Delete Room"
+                >
+                  <Trash2 className="size-4 drop-shadow-[0_0_10px_rgba(255,0,0,0.1)] group-hover:drop-shadow-[0_0_15px_rgba(255,0,0,0.4)]" />
+                </button>
+              )}
+            </div>
           </div>
           
           {roomId && (
-            <div className="flex items-center gap-3 shrink-0">
-              <button 
-                onClick={() => setShowParticipants(!showParticipants)}
-                className="flex items-center gap-1.5 px-3 py-1 rounded bg-primary/10 border border-primary/30 hover:bg-primary/20 transition-all text-[11px] font-bold text-primary uppercase shadow-[0_0_10px_rgba(0,255,0,0.1)] hover:shadow-[0_0_15px_rgba(0,255,0,0.2)]"
-              >
-                Participants
-              </button>
-              <div 
-                onClick={() => copyToClipboard(roomId)}
-                className="flex items-center gap-1.5 px-2 py-1 rounded border border-primary/20 hover:border-primary/60 hover:bg-primary/10 cursor-pointer transition-all group"
-              >
-                <span className="text-[9px] text-primary/70 uppercase tracking-widest font-bold">ROOM ID:</span>
-                <code className="text-[11px] text-primary font-mono font-bold bg-primary/20 px-1.5 py-0.5 rounded shadow-[0_0_10px_rgba(0,255,0,0.2)]">
-                  {roomId}
-                </code>
+            <div className="flex h-10 md:h-auto w-full md:w-auto items-center justify-between md:justify-end gap-3 shrink-0 pb-2 md:pb-0 border-t md:border-t-0 border-border/20 md:border-transparent">
+              <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end">
+                <button 
+                  onClick={() => setShowParticipants(!showParticipants)}
+                  className="flex items-center gap-1.5 px-3 py-1 rounded bg-primary/10 border border-primary/30 hover:bg-primary/20 transition-all text-[10px] md:text-[11px] font-bold text-primary uppercase shadow-[0_0_10px_rgba(0,255,0,0.1)]"
+                >
+                  Participants
+                </button>
+                <div 
+                  onClick={() => copyToClipboard(roomId)}
+                  className="flex items-center gap-1.5 px-2 py-1 rounded border border-primary/20 hover:border-primary/60 hover:bg-primary/10 cursor-pointer transition-all group max-w-[150px] md:max-w-none"
+                >
+                  <span className="hidden sm:inline text-[9px] text-primary/70 uppercase tracking-widest font-bold">ROOM ID:</span>
+                  <code className="text-[10px] md:text-[11px] text-primary font-mono font-bold bg-primary/20 px-1.5 py-0.5 rounded shadow-[0_0_10px_rgba(0,255,0,0.2)] truncate">
+                    {roomId}
+                  </code>
+                </div>
               </div>
-              <button 
-                onClick={handleDeleteRoom}
-                className="p-1.5 rounded text-primary/70 hover:text-red-500 hover:bg-red-500/10 transition-all border border-transparent hover:border-red-500/30 group"
-                title="Delete Room"
-              >
-                <Trash2 className="size-4 drop-shadow-[0_0_10px_rgba(255,0,0,0.1)] group-hover:drop-shadow-[0_0_15px_rgba(255,0,0,0.4)]" />
-              </button>
+              
+              {/* Desktop-only trash icon */}
+              <div className="hidden md:block">
+                <button 
+                  onClick={handleDeleteRoom}
+                  className="p-1.5 rounded text-primary/70 hover:text-red-500 hover:bg-red-500/10 transition-all border border-transparent hover:border-red-500/30 group"
+                  title="Delete Room"
+                >
+                  <Trash2 className="size-4 drop-shadow-[0_0_10px_rgba(255,0,0,0.1)] group-hover:drop-shadow-[0_0_15px_rgba(255,0,0,0.4)]" />
+                </button>
+              </div>
             </div>
           )}
         </header>
@@ -110,8 +192,10 @@ export default function App() {
             </div>
           </div>
         )}
-        <ChatSection setParticipantsList={setParticipantsList} />
+        <ChatSection setParticipantsList={setParticipantsList} setSettingsOpen={setSettingsOpen} />
       </SidebarInset>
+      {JoinOpen && <JoinModel JoinOpen={JoinOpen} setJoinOpen={setJoinOpen} />}
+      {settingsOpen && <SettingModel settingsOpen={settingsOpen} setSettingsOpen={setSettingsOpen} />}
     </SidebarProvider>
   )
 }

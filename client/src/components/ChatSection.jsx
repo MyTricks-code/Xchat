@@ -9,7 +9,7 @@ import toast from "react-hot-toast";
 
 const API = import.meta.env.VITE_BACKEND_URL || "http://localhost:3000";
 
-const ChatSection = ({ setParticipantsList }) => {
+const ChatSection = ({ setParticipantsList, setSettingsOpen }) => {
   const { roomId } = useParams();
   const { user } = useAuth();
   const [message, setMessage] = useState("");
@@ -93,8 +93,8 @@ const ChatSection = ({ setParticipantsList }) => {
 
   if (!roomId) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-background text-muted-foreground">
-        Select a room to start chatting
+      <div className="flex-1 flex items-center justify-center bg-background text-muted-foreground font-mono uppercase tracking-[0.2em] text-[10px]">
+        Select a secure channel to begin transmission
       </div>
     );
   }
@@ -102,14 +102,14 @@ const ChatSection = ({ setParticipantsList }) => {
   return (
     <div className="flex-1 flex flex-col min-h-0 bg-background relative">
       {/* Messages area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar">
         {loading ? (
-          <div className="text-center text-muted-foreground animate-pulse mt-10">
-            Loading messages...
+          <div className="text-center text-muted-foreground animate-pulse mt-10 font-mono tracking-widest text-[10px] uppercase">
+            Synchronizing data...
           </div>
         ) : messages.length === 0 ? (
-          <div className="text-center text-muted-foreground italic mt-10">
-            No messages yet. Say hi!
+          <div className="text-center text-muted-foreground italic mt-10 font-mono tracking-widest text-[10px] uppercase">
+            No history found. Post your first encrypted log.
           </div>
         ) : (
           messages.map((msg) => {
@@ -173,32 +173,46 @@ const ChatSection = ({ setParticipantsList }) => {
 
       {/* Input area */}
       <div className="p-4 border-t bg-background">
-        <div className="flex items-end gap-2 bg-secondary p-2 rounded-xl border border-secondary transition-all focus-within:ring-2 focus-within:ring-blue-500/20">
-          <textarea
-            name="text"
-            id="text"
-            placeholder="Type a message..."
-            value={message}
-            rows={1}
-            className="flex-1 min-h-[40px] max-h-[120px] bg-transparent border-none outline-none resize-none p-2 text-sm placeholder:text-muted-foreground"
-            onChange={(e) => setMessage(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                handleSend();
-              }
-            }}
-          />
-          <Button
-            size="icon"
-            onClick={handleSend}
-            disabled={!message.trim()}
-            className="shrink-0 size-10 rounded-lg"
-          >
-            <SendHorizontal className="size-5" />
-            <span className="sr-only">Send Message</span>
-          </Button>
-        </div>
+        {user ? (
+          <div className="flex items-end gap-2 bg-secondary p-2 rounded-xl border border-secondary transition-all focus-within:ring-2 focus-within:ring-primary/20 shadow-[inset_0_2px_10px_rgba(0,0,0,0.3)]">
+            <textarea
+              name="text"
+              id="text"
+              placeholder="Inject secure log..."
+              value={message}
+              rows={1}
+              className="flex-1 min-h-[40px] max-h-[120px] bg-transparent border-none outline-none resize-none p-2 text-sm placeholder:text-muted-foreground font-mono"
+              onChange={(e) => setMessage(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
+            />
+            <Button
+              size="icon"
+              onClick={handleSend}
+              disabled={!message.trim()}
+              className="shrink-0 size-10 rounded-lg hover:shadow-[0_0_15px_rgba(0,255,0,0.3)] transition-all bg-primary hover:bg-primary/80 text-background"
+            >
+              <SendHorizontal className="size-5" />
+              <span className="sr-only">Send Message</span>
+            </Button>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center p-6 bg-secondary/20 rounded-xl border border-dashed border-primary/30 backdrop-blur-md animate-in fade-in zoom-in-95 duration-500">
+            <p className="text-[11px] font-mono font-bold text-primary/70 uppercase tracking-[0.2em] mb-4 drop-shadow-[0_0_8px_rgba(0,255,0,0.3)] text-center">
+              Identity required to participate in secure transmission
+            </p>
+            <Button
+              onClick={() => setSettingsOpen(true)}
+              className="bg-primary/20 hover:bg-primary/40 text-primary border border-primary/50 text-[10px] uppercase font-bold tracking-[0.3em] px-8 py-5 h-auto shadow-[0_0_20px_rgba(0,255,0,0.2)] hover:shadow-[0_0_30px_rgba(0,255,0,0.4)] transition-all"
+            >
+              Establish Connection
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );
